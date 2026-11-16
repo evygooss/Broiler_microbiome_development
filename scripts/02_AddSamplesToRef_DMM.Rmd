@@ -1,0 +1,520 @@
+---
+title: "02 add additional samples to reference dataset"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Set-up
+
+Set the working directory to the location of your R project. This is important for reproducibility and to ensure that all file paths are correct.
+
+```{r}
+# Set working directory -- Change this to the directory where you have your R project
+setwd("/home/evygooss/courses/2026-11_Git/project/")
+```
+
+Load the necessary packages for the analysis. If you haven't installed these packages yet, you can do so using `install.packages("package_name")`. Or using `BiocManager::install("package_name")` for Bioconductor packages.
+
+```{r}
+# load packages
+library(DirichletMultinomial)
+library(phyloseq)
+library(dplyr)
+library(ggplot2)
+library(tibble)
+library(Biostrings)
+library(viridis)
+library(forcats)
+
+# check the versions of all packages
+sessionInfo()
+```
+
+### Load the reference data and create a phyloseq object. 
+
+Make sure to adjust the file paths to where your data files are located.
+
+```{r}
+# load ASV table
+ref_asv_table <- read.csv("data/reference/ref_asv_table.csv", header = TRUE, row.names = 1)
+# View(ref_asv_table)
+
+# load taxonomy table
+ref_taxonomy_table <- read.csv("data/reference/ref_tax_table.csv", header = TRUE, row.names = 1)
+# View(ref_taxonomy_table)
+
+# load representative sequences
+ref_rep_seqs <- read.csv("data/reference/ref_rep_seqs.csv", header = TRUE, row.names = 1)
+# View(ref_rep_seqs)
+# Convert to DNAStringSet (required by phyloseq)
+ref_rep_seqs_dna <- DNAStringSet(ref_rep_seqs[, 1]) # Assuming sequences are in first column
+names(ref_rep_seqs_dna) <- rownames(ref_rep_seqs)
+
+# load sample metadata
+ref_sample_metadata <- read.csv("data/reference/ref_sample_metadata.csv", header = TRUE, row.names = 1)
+# View(ref_sample_metadata)
+
+# Check the structure of the sample metadata and convert relevant columns to factors
+str(ref_sample_metadata)
+ref_sample_metadata$Bird <- as.factor(ref_sample_metadata$Bird)
+ref_sample_metadata$Pen <- as.factor(ref_sample_metadata$Pen)
+ref_sample_metadata$BirdID <- as.factor(ref_sample_metadata$BirdID)
+ref_sample_metadata$fAge <- as.factor(ref_sample_metadata$fAge)
+
+# create a phyloseq object
+PS_ref <- phyloseq(
+    otu_table(ref_asv_table, taxa_are_rows = FALSE),
+    tax_table(as.matrix(ref_taxonomy_table)),
+    sample_data(ref_sample_metadata),
+    refseq(ref_rep_seqs_dna)
+)
+```
+
+### Load the Early feeding data and create a phyloseq object. 
+
+Make sure to adjust the file paths to where your data files are located.
+
+```{r}
+# load ASV table
+EF_asv_table <- read.csv("data/early_feeding/EF_asv_table.csv", header = TRUE, row.names = 1)
+# View(EF_asv_table)
+
+# load taxonomy table
+EF_taxonomy_table <- read.csv("data/early_feeding/EF_tax_table.csv", header = TRUE, row.names = 1)
+# View(EF_taxonomy_table)
+
+# load representative sequences
+EF_rep_seqs <- read.csv("data/early_feeding/EF_rep_seqs.csv", header = TRUE, row.names = 1)
+# View(EF_rep_seqs)
+# Convert to DNAStringSet (required by phyloseq)
+EF_rep_seqs_dna <- DNAStringSet(EF_rep_seqs[, 1]) # Assuming sequences are in first column
+names(EF_rep_seqs_dna) <- rownames(EF_rep_seqs)
+
+# load sample metadata
+EF_sample_metadata <- read.csv("data/early_feeding/EF_sample_metadata.csv", header = TRUE, row.names = 1)
+# View(EF_sample_metadata)
+
+# Check the structure of the sample metadata and convert relevant columns to factors
+str(EF_sample_metadata)
+EF_sample_metadata$Breed <- as.factor(EF_sample_metadata$Breed)
+EF_sample_metadata$Treatment <- as.factor(EF_sample_metadata$Treatment)
+EF_sample_metadata$Pen <- as.factor(EF_sample_metadata$Pen)
+EF_sample_metadata$Sex <- as.factor(EF_sample_metadata$Sex)
+EF_sample_metadata$fAge <- as.factor(EF_sample_metadata$fAge)
+
+# create a phyloseq object
+PS_EF <- phyloseq(
+    otu_table(EF_asv_table, taxa_are_rows = FALSE),
+    tax_table(as.matrix(EF_taxonomy_table)),
+    sample_data(EF_sample_metadata),
+    refseq(EF_rep_seqs_dna)
+)
+```
+
+The early feeding dataset contains multiple groups:
+
+- Two breeds: Ross 308 and Hubbard Redbro
+- Two groups: Early feeding (EF) and delayed feeding (DF)
+
+The delayed feeding group is comparable to conventional birds, which arrive at the farm without access to feed and water for a period of time after hatching. The early feeding group has access to feed and water immediately after hatching.
+Therefore, the DF group is comparable to the reference dataset, while the EF group is not. For this reason, we will only use the DF group to combine with the reference dataset for DMM clustering.
+
+```{r}
+# keep only the DF group
+PS_DF <- subset_samples(PS_EF, Group == "DF")
+# # how many samples are in the DF group?
+# nrow(sample_data(PS_DF))
+# nrow(sample_data(PS_EF))
+```
+
+At first timepoint (Age = 2), the Delayed feeding group did not yet have access to feed and water. As such, this is timepoint is not comparable to the reference dataset and has to be removed from the dataset. 
+
+```{r}
+PS_DF <- subset_samples(PS_DF, Age != 2)
+```
+
+# Identify gut microbiota maturation stages in the combined dataset
+
+DMM clustering is performed at the genus level to identify gut microbiota maturation stages in the dataset combining both the reference and early feeding datasets. The optimal number of clusters is determined using the Laplace approximation.
+
+Both datasets contain different ASV labeling. Therefore, we will merge the datasets at the genus level before combing the datasets for DMM clustering. 
+
+## Merge data at genus level, combine datasets and perform DMM clustering
+
+```{r}
+# Merge data at genus level
+PS_ref_genus <- tax_glom(PS_ref, taxrank = "Genus")
+taxa_names(PS_ref_genus) <- tax_table(PS_ref_genus)[, "Genus"]
+
+PS_DF_genus <- tax_glom(PS_DF, taxrank = "Genus")
+taxa_names(PS_DF_genus) <- tax_table(PS_DF_genus)[, "Genus"]
+
+# Combine the two datasets
+PS_combined_genus <- merge_phyloseq(PS_ref_genus, PS_DF_genus)
+
+# Extract the count matrix and convert it into samples x taxa format
+counts_gen <- as(otu_table(PS_combined_genus), "matrix")
+
+# Transpose if taxa are rows (we need taxa as columns)
+if (taxa_are_rows(PS_combined_genus)) {
+    counts_gen <- t(counts_gen)
+}
+
+# Convert to data.frame if needed and then matrix
+counts_gen <- as.data.frame(counts_gen)
+genus_combined <- as.matrix(counts_gen)
+```
+
+## Perform DMM clustering 
+
+```{r}
+# fit with maximum allowed number of community types (i.e. maturation stages) set to 10
+fit_combined <- lapply(1:10, dmn, count = genus_combined, verbose = TRUE)
+
+# Save fit file
+saveRDS(fit_combined, "./results/early_feeding/DMM_fit_combined_genus.rds")
+```
+
+## Evaluate the results
+
+```{r}
+# fit_combined <- readRDS("./results/early_feeding/DMM_fit_combined_genus.rds")
+
+# Check model fit with different number of mixture components using standard information criteria
+lplc <- sapply(fit_combined, laplace) # AIC / BIC / Laplace
+aic <- sapply(fit_combined, AIC) # AIC / BIC / Laplace
+bic <- sapply(fit_combined, BIC) # AIC / BIC / Laplace
+
+# create ggplot of all three criteria
+df_criteria <- data.frame(
+    components = rep(seq_along(fit), 3),
+    criterion = rep(c("Laplace", "AIC", "BIC"), each = length(fit)),
+    value = c(lplc, aic, bic)
+)
+
+p_DMM_combined <- ggplot(
+    df_criteria,
+    aes(x = components, y = value, colour = criterion)
+) +
+    geom_line(linewidth = 0.7) +
+    geom_point(size = 2.5) +
+    scale_x_continuous(breaks = seq_along(fit)) +
+    labs(
+        x = "Number of Dirichlet components",
+        y = "Model selection criterion",
+        colour = "Criterion"
+    ) +
+    theme_classic()
+
+# save plot
+ggsave("./results/early_feeding/DMM_combined_model_fit.png", plot = p_DMM_combined, width = 6, height = 4, dpi = 300)
+```
+
+![DMM model fit](./results/early_feeding/DMM_combined_model_fit.png)
+
+We use the Laplace approximation to determine the optimal number of clusters. The model with the lowest Laplace value is considered the best fit. In this case, the optimal number of clusters is 4, which we will use for further analysis.
+Also the AIC values are lowest for the model with 4 clusters, while the BIC values are lowest for the model with 3 clusters. 
+
+## Assess the probability of each sample belonging to each component
+
+The DMM model provides posterior probabilities indicating the probability of each sample belonging to each mixture component. To assess the certainty of sample assignments, the maximum posterior probability is extracted for each sample. The distribution of these maximum probabilities is then summarized.
+
+```{r}
+# Pick the optimal model
+best <- fit_combined[[which.min(unlist(lplc))]]
+
+# save the best model for future use
+saveRDS(best, "./results/early_feeding/DMM_best_model_combined_genus.rds")
+
+# probability of each sample belonging to each component
+p <- mixture(best)
+max_prob <- apply(p, 1, max)
+
+mean(max_prob)
+median(max_prob)
+sd(max_prob)
+
+summary(max_prob)
+```
+
+Higher maximum probabilities indicate more distinct assignments to a particular component, whereas lower probabilities indicate greater uncertainty in component membership.
+
+## Add DMM cluster assignments to the metadata
+
+```{r}
+# Sample-component assignments -> list of samples linked to clusters
+ass <- apply(mixture(best), 1, which.max)
+
+# add DMM cluster to metadata
+metadata <- as(sample_data(PS_combined_genus), "data.frame")
+metadata <- metadata %>% tibble::rownames_to_column(var = "SampleName")
+ass.df <- as.data.frame(ass)
+colnames(ass.df) <- "DMM"
+metadata_combined_dmm <- ass.df %>%
+    tibble::rownames_to_column(var = "SampleName") %>%
+    inner_join(metadata)
+```
+
+The DMM cluster assignments are now added to the metadata, but the order is not necessarily meaningful. Create a new column in the metadata to assign cluster numbers based on age, which will help in interpreting the results.
+
+```{r}
+# add cluster numbers based on age
+View(metadata_combined_dmm)
+
+# inspect the metadata file and determine the order of clusters based on age. For example, if cluster 3 corresponds to the youngest age group, cluster 1 to the next age group, and so on, we can assign new cluster numbers accordingly.
+
+# Create a new column "Cluster" in the metadata to assign cluster numbers based on age
+metadata_combined_dmm <- metadata_combined_dmm %>%
+    mutate(Cluster = case_when(
+        DMM == 1 ~ "III",
+        DMM == 2 ~ "II",
+        DMM == 3 ~ "I",
+        DMM == 4 ~ "IV"
+    ))
+
+
+# str(metadata_combined_dmm)
+metadata_combined_dmm$Cluster <- as.factor(metadata_combined_dmm$Cluster)
+
+# Convert to data.frame if necessary
+metadata_combined_dmm <- as.data.frame(metadata_combined_dmm)
+
+# Set sample names as row names
+rownames(metadata_combined_dmm) <- metadata_combined_dmm$SampleName
+
+# Add to the phyloseq object
+sample_data(PS_combined_genus) <- sample_data(metadata_combined_dmm)
+```
+
+## Visualize the number of samples per DMM cluster
+
+```{r}
+# create bubble chart representing number of samples per DMM cluster | ALL GROUPS ----
+Bubble_data_combined <- metadata_combined_dmm %>%
+    group_by(Age, Cluster, Dataset, Breed) %>%
+    summarize(n_samples = n())
+
+Bubble_combined_DMM <- Bubble_data_combined %>%
+    arrange(desc(n_samples)) %>%
+    mutate(Age = factor(Age)) %>%
+    ggplot(aes(x = Age, y = fct_rev(Cluster), size = n_samples, color = Cluster)) +
+    geom_point(alpha = 0.5) +
+    geom_text(aes(label = n_samples), size = 3.5, color = "black") +
+    scale_size(range = c(5, 10), name = "Number of sampels") +
+    scale_color_viridis(discrete = TRUE) +
+    scale_fill_viridis(discrete = TRUE) +
+    xlab("Days post hatch") +
+    ylab("GM maturation stage") +
+    theme_minimal() +
+    theme(legend.position = "none") +
+    facet_grid(Breed ~ .)
+
+# save plot
+ggsave("./results/early_feeding/Bubble_combined_DMM.png", plot = Bubble_combined_DMM, width = 8, height = 6, dpi = 300)
+```
+
+![Stages of caecal microbiome maturation](./results/reference/Bubble_ref_DMM.png)
+
+Graphic representation of the microbiota progression. Nodes are ordered based on age of the birds and labelled to include the number of samples per timepoint allocated to each GM maturation stage. 
+
+# Predict the DMM cluster for the birds that got immediate access to feed and water after hatching (Early feeding group)
+
+We will use the DMM model trained on the combined dataset (reference and delayed fed from the second dataset) to predict the GM maturation stage for the Early feeding group. This will help us understand how early access to feed and water affects the development of the gut microbiota in these birds.
+
+```{r}
+# Create a phyloseq object for the Early feeding group at genus level
+PS_early <- subset_samples(PS_EF, Group == "EF")
+PS_early_genus <- tax_glom(PS_early, taxrank = "Genus")
+taxa_names(PS_early_genus) <- tax_table(PS_early_genus)[, "Genus"]
+```
+
+```{r}
+# Extract the count matrix and convert it into samples x taxa format
+counts_gen <- as(otu_table(PS_early_genus), "matrix")
+
+# Transpose if taxa are rows (we need taxa as columns)
+if (taxa_are_rows(PS_early_genus)) {
+    counts_gen <- t(counts_gen)
+}
+
+# Convert to data.frame if needed and then matrix
+counts_gen <- as.data.frame(counts_gen)
+genus_early <- as.matrix(counts_gen)
+```
+
+### align the count matrix of the Early feeding group with the taxa in the DMM model
+
+First we need to check if all taxa in the Early feeding group are present in the DMM model. If there are any missing taxa, we will need to add them to the count matrix with a count of 0. 
+
+```{r}
+# Genera in the reference DMM model
+reference_genera <- as.character(colnames(genus_combined))
+
+# Genera in the Early feeding group
+early_genera <- as.character(colnames(genus_early))
+
+missing_genera <- reference_genera[
+    !reference_genera %in% early_genera
+]
+
+missing_genera
+```
+
+23 genera are present in the reference DMM model but not in the Early feeding group. We will add these missing genera to the count matrix with a count of 0.
+
+```{r}
+# Convert to matrix
+genus_early <- as.matrix(genus_early)
+
+# Create matrix with exactly the reference genera
+genus_early_aligned <- matrix(
+    0,
+    nrow = nrow(genus_early),
+    ncol = ncol(genus_combined),
+    dimnames = list(
+        rownames(genus_early),
+        colnames(genus_combined)
+    )
+)
+
+# Copy counts for genera present in both datasets
+common_genera <- intersect(
+    colnames(genus_early),
+    colnames(genus_combined)
+)
+
+genus_early_aligned[, common_genera] <-
+    genus_early[, common_genera, drop = FALSE]
+
+# Replace original object
+genus_early <- genus_early_aligned
+
+# Verify
+identical(colnames(genus_early), colnames(genus_combined))
+```
+
+### Predict the DMM cluster for the Early feeding group using the trained DMM model
+
+```{r}
+stopifnot(
+    identical(colnames(genus_early), colnames(genus_combined))
+)
+
+# Check that all samples have a non-zero total count
+summary(rowSums(genus_early))
+```
+
+```{r}
+# Predict cluster membership using the existing DMM
+predicted_probabilities <- predict(
+    best,
+    newdata = genus_early
+)
+
+# Inspect the result
+dim(predicted_probabilities)
+head(predicted_probabilities)
+```
+
+### Assign each sample to the cluster with the highest probability
+
+```{r}
+# Assign the component with the highest posterior probability
+predicted_cluster <- max.col(
+    predicted_probabilities,
+    ties.method = "first"
+)
+
+# Calculate assignment certainty
+max_probability <- apply(
+    predicted_probabilities,
+    1,
+    max
+)
+
+# Combine results
+prediction_results <- data.frame(
+    SampleID = rownames(genus_early),
+    Predicted_cluster = predicted_cluster,
+    Max_probability = max_probability
+)
+
+head(prediction_results)
+```
+
+### Inspect assignment certainty
+
+```{r}
+summary(prediction_results$Max_probability)
+
+hist(
+    prediction_results$Max_probability,
+    breaks = 20,
+    xlab = "Maximum posterior probability",
+    main = "Certainty of DMM cluster assignment"
+)
+```
+
+### add the predicted DMM cluster to the metadata of the Early feeding group
+
+```{r}
+# add predicted DMM cluster to the metadata of the Early feeding group
+metadata_early <- as(sample_data(PS_early_genus), "data.frame")
+metadata_early <- metadata_early %>%
+    tibble::rownames_to_column(var = "SampleName") %>%
+    inner_join(prediction_results, by = c("SampleName" = "SampleID"))
+```
+
+Order the predicted clusters based on the age of the birds, similar to what was done for the combined dataset.
+We will use te same order of clusters as in the combined dataset: I, II, III, IV.
+
+```{r}
+# Create a new column "Cluster" in the metadata to assign cluster numbers based on age
+metadata_early_dmm <- metadata_early %>%
+    mutate(Cluster = case_when(
+        Predicted_cluster == 1 ~ "III",
+        Predicted_cluster == 2 ~ "II",
+        Predicted_cluster == 3 ~ "I",
+        Predicted_cluster == 4 ~ "IV"
+    ))
+
+# str(metadata_combined_dmm)
+metadata_early_dmm$Cluster <- as.factor(metadata_early_dmm$Cluster)
+
+# # Convert to data.frame if necessary
+# metadata_combined_dmm <- as.data.frame(metadata_combined_dmm)
+
+# # Set sample names as row names
+# rownames(metadata_combined_dmm) <- metadata_combined_dmm$SampleName
+```
+
+
+### Visualize the number of samples per DMM cluster in the Early feeding group
+
+```{r}
+# create bubble chart representing number of samples per DMM cluster | ALL GROUPS ----
+Bubble_data_early <- metadata_early_dmm %>%
+    group_by(Age, Cluster, Breed) %>%
+    summarize(n_samples = n())
+
+Bubble_early_DMM <- Bubble_data_early %>%
+    arrange(desc(n_samples)) %>%
+    mutate(Age = factor(Age)) %>%
+    ggplot(aes(x = Age, y = fct_rev(Cluster), size = n_samples, color = Cluster)) +
+    geom_point(alpha = 0.5) +
+    geom_text(aes(label = n_samples), size = 3.5, color = "black") +
+    scale_size(range = c(5, 10), name = "Number of sampels") +
+    scale_color_viridis(discrete = TRUE) +
+    scale_fill_viridis(discrete = TRUE) +
+    xlab("Days post hatch") +
+    ylab("GM maturation stage") +
+    theme_minimal() +
+    theme(legend.position = "none") +
+    facet_grid(Breed ~ .)
+
+# save plot
+ggsave("./results/early_feeding/Bubble_EarlyFed_DMM.png", plot = Bubble_early_DMM, width = 8, height = 4, dpi = 300)
+```
