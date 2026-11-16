@@ -92,14 +92,14 @@ if (taxa_are_rows(PS_ref_genus)) {
 
 # Convert to data.frame if needed and then matrix
 counts_gen <- as.data.frame(counts_gen)
-genus <- as.matrix(counts_gen)
+genus_ref <- as.matrix(counts_gen)
 ```
 
 ## Perform DMM clustering 
 
 ```{r}
 # fit with maximum allowed number of community types (i.e. maturation stages) set to 10
-fit <- lapply(1:10, dmn, count = genus, verbose = TRUE)
+fit <- lapply(1:10, dmn, count = genus_ref, verbose = TRUE)
 
 # Save fit file
 saveRDS(fit, "./results/reference/DMM_fit_ref_genus.rds")
