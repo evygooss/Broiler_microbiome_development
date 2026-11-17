@@ -1,2 +1,6 @@
 # files to ignore
 .vscode
+data/2025_physeq_caecum_CTR.rds
+scripts/create_input_ref_files.R
+scripts/create_input_EarlyFeeding_files.R
+data/2026_physeq_final.rds
