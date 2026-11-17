@@ -213,8 +213,6 @@ p_DMM_combined <- ggplot(
 ggsave("./results/early_feeding/DMM_combined_model_fit.png", plot = p_DMM_combined, width = 6, height = 4, dpi = 300)
 ```
 
-![DMM model fit](./results/early_feeding/DMM_combined_model_fit.png)
-
 We use the Laplace approximation to determine the optimal number of clusters. The model with the lowest Laplace value is considered the best fit. In this case, the optimal number of clusters is 4, which we will use for further analysis.
 Also the AIC values are lowest for the model with 4 clusters, while the BIC values are lowest for the model with 3 clusters. 
 
@@ -316,9 +314,6 @@ Bubble_combined_DMM <- Bubble_data_combined %>%
 ggsave("./results/early_feeding/Bubble_combined_DMM.png", plot = Bubble_combined_DMM, width = 8, height = 6, dpi = 300)
 ```
 
-![Stages of caecal microbiome maturation](./results/reference/Bubble_ref_DMM.png)
-
-Graphic representation of the microbiota progression. Nodes are ordered based on age of the birds and labelled to include the number of samples per timepoint allocated to each GM maturation stage. 
 
 # Predict the DMM cluster for the birds that got immediate access to feed and water after hatching (Early feeding group)
 
