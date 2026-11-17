@@ -39,7 +39,7 @@ When combining microbiome datasets or applying an existing DMM model to new samp
 
 **DNA extraction and library preparation**
 
-New datasets should be generated using the same DNA extraction protocol and 16S rRNA gene target region and primer pair as the reference dataset. The library preparation protocol should also be consistent.
+New datasets should be generated using the same DNA extraction protocol and 16S rRNA gene target region and primer pair as the reference dataset. The CTAB DNA extraction protocol used in the current datasets is given in the `protocols` folder. Amplification of the V3-V4 region of the 16S rRNA gene was performed using the gene-specific primers S-D-Bact-0341-b-S-17 (5′CCTACGGGNGGCWGCAG-3′) and S-D-Bact-0785-a-A-21 (5′-GACTACHVGGGTATCTAATCC-3′) described by Klindworth *et al.* (2013) (https://doi.org/10.1093/nar/gks808). 
 
 Differences in these procedures can introduce technical variation that affects the observed microbial community composition and may compromise comparisons between datasets.
 
