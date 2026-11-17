@@ -1,0 +1,245 @@
+---
+title: "01 Reference DMM"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Set-up
+
+Set the working directory to the location of your R project. This is important for reproducibility and to ensure that all file paths are correct.
+
+```{r}
+# Set working directory -- Change this to the directory where you have your R project
+setwd("/home/evygooss/courses/2026-11_Git/project/")
+```
+
+Load the necessary packages for the analysis. If you haven't installed these packages yet, you can do so using `install.packages("package_name")`. Or using `BiocManager::install("package_name")` for Bioconductor packages.
+
+```{r}
+# load packages
+library(DirichletMultinomial)
+library(phyloseq)
+library(dplyr)
+library(ggplot2)
+library(tibble)
+library(Biostrings)
+library(viridis)
+library(forcats)
+
+# check the versions of all packages
+sessionInfo()
+```
+
+Load the data and create a phyloseq object. Make sure to adjust the file paths to where your data files are located.
+
+```{r}
+# load ASV table
+asv_table <- read.csv("data/reference/ref_asv_table.csv", header = TRUE, row.names = 1)
+# View(asv_table)
+
+# load taxonomy table
+taxonomy_table <- read.csv("data/reference/ref_tax_table.csv", header = TRUE, row.names = 1)
+# View(taxonomy_table)
+
+# load representative sequences
+rep_seqs <- read.csv("data/reference/ref_rep_seqs.csv", header = TRUE, row.names = 1)
+# View(rep_seqs)
+# Convert to DNAStringSet (required by phyloseq)
+rep_seqs_dna <- DNAStringSet(rep_seqs[, 1]) # Assuming sequences are in first column
+names(rep_seqs_dna) <- rownames(rep_seqs)
+
+# load sample metadata
+sample_metadata <- read.csv("data/reference/ref_sample_metadata.csv", header = TRUE, row.names = 1)
+# View(sample_metadata)
+
+# Check the structure of the sample metadata and convert relevant columns to factors
+str(sample_metadata)
+sample_metadata$Bird <- as.factor(sample_metadata$Bird)
+sample_metadata$Pen <- as.factor(sample_metadata$Pen)
+sample_metadata$BirdID <- as.factor(sample_metadata$BirdID)
+sample_metadata$fAge <- as.factor(sample_metadata$fAge)
+
+# create a phyloseq object
+PS_ref <- phyloseq(
+    otu_table(asv_table, taxa_are_rows = FALSE),
+    tax_table(as.matrix(taxonomy_table)),
+    sample_data(sample_metadata),
+    refseq(rep_seqs_dna)
+)
+```
+
+# Identify gut microbiota maturation stages in the reference dataset
+
+DMM clustering is performed at the genus level to identify gut microbiota maturation stages in the reference dataset. The optimal number of clusters is determined using the Laplace approximation.
+
+## Merge data at genus level and perform DMM clustering
+
+```{r}
+# Merge data at genus level
+PS_ref_genus <- tax_glom(PS_ref, taxrank = "Genus")
+taxa_names(PS_ref_genus) <- tax_table(PS_ref_genus)[, "Genus"]
+
+# Extract the count matrix and convert it into samples x taxa format
+counts_gen <- as(otu_table(PS_ref_genus), "matrix")
+
+# Transpose if taxa are rows (we need taxa as columns)
+if (taxa_are_rows(PS_ref_genus)) {
+    counts_gen <- t(counts_gen)
+}
+
+# Convert to data.frame if needed and then matrix
+counts_gen <- as.data.frame(counts_gen)
+genus_ref <- as.matrix(counts_gen)
+```
+
+## Perform DMM clustering 
+
+```{r}
+# fit with maximum allowed number of community types (i.e. maturation stages) set to 10
+fit <- lapply(1:10, dmn, count = genus_ref, verbose = TRUE)
+
+# Save fit file
+saveRDS(fit, "./results/reference/DMM_fit_ref_genus.rds")
+```
+
+## Evaluate the results
+
+```{r}
+# fit <- readRDS("./results/reference/DMM_fit_ref_genus.rds")
+
+# Check model fit with different number of mixture components using standard information criteria
+lplc <- sapply(fit, laplace) # AIC / BIC / Laplace
+aic <- sapply(fit, AIC) # AIC / BIC / Laplace
+bic <- sapply(fit, BIC) # AIC / BIC / Laplace
+
+# create ggplot of all three criteria
+df_criteria <- data.frame(
+    components = rep(seq_along(fit), 3),
+    criterion = rep(c("Laplace", "AIC", "BIC"), each = length(fit)),
+    value = c(lplc, aic, bic)
+)
+
+p_DMM_ref <- ggplot(
+    df_criteria,
+    aes(x = components, y = value, colour = criterion)
+) +
+    geom_line(linewidth = 0.7) +
+    geom_point(size = 2.5) +
+    scale_x_continuous(breaks = seq_along(fit)) +
+    labs(
+        x = "Number of Dirichlet components",
+        y = "Model selection criterion",
+        colour = "Criterion"
+    ) +
+    theme_classic()
+
+# save plot
+ggsave("./results/reference/DMM_ref_model_fit.png", plot = p_DMM_ref, width = 6, height = 4, dpi = 300)
+```
+
+![DMM model fit](./results/reference/DMM_ref_model_fit.png)
+
+We use the Laplace approximation to determine the optimal number of clusters. The model with the lowest Laplace value is considered the best fit. In this case, the optimal number of clusters is 4, which we will use for further analysis.
+
+## Assess the probability of each sample belonging to each component
+
+The DMM model provides posterior probabilities indicating the probability of each sample belonging to each mixture component. To assess the certainty of sample assignments, the maximum posterior probability is extracted for each sample. The distribution of these maximum probabilities is then summarized.
+
+```{r}
+# Pick the optimal model
+best <- fit[[which.min(unlist(lplc))]]
+
+# probability of each sample belonging to each component
+p <- mixture(best)
+max_prob <- apply(p, 1, max)
+
+mean(max_prob)
+median(max_prob)
+sd(max_prob)
+
+summary(max_prob)
+```
+
+Higher maximum probabilities indicate more distinct assignments to a particular component, whereas lower probabilities indicate greater uncertainty in component membership.
+
+## Add DMM cluster assignments to the metadata
+
+```{r}
+# Sample-component assignments -> list of samples linked to clusters
+ass <- apply(mixture(best), 1, which.max)
+
+# add DMM cluster to metadata
+metadata <- as(sample_data(PS_ref), "data.frame")
+metadata <- metadata %>% tibble::rownames_to_column(var = "SampleName")
+ass.df <- as.data.frame(ass)
+colnames(ass.df) <- "DMM"
+metadata_ref_dmm <- ass.df %>%
+    tibble::rownames_to_column(var = "SampleName") %>%
+    inner_join(metadata)
+```
+
+The DMM cluster assignments are now added to the metadata, but the order is not necessarily meaningful. Create a new column in the metadata to assign cluster numbers based on age, which will help in interpreting the results.
+
+```{r}
+# add cluster numbers based on age
+View(metadata_ref_dmm)
+
+# inspect the metadata file and determine the order of clusters based on age. For example, if cluster 3 corresponds to the youngest age group, cluster 1 to the next age group, and so on, we can assign new cluster numbers accordingly.
+
+# Create a new column "Cluster" in the metadata to assign cluster numbers based on age
+metadata_ref_dmm <- metadata_ref_dmm %>%
+    mutate(Cluster = case_when(
+        DMM == 1 ~ "II",
+        DMM == 2 ~ "III",
+        DMM == 3 ~ "I",
+        DMM == 4 ~ "IV"
+    ))
+
+# str(metadata_ref_dmm)
+metadata_ref_dmm$Cluster <- as.factor(metadata_ref_dmm$Cluster)
+
+# Convert to data.frame if necessary
+metadata_ref_dmm <- as.data.frame(metadata_ref_dmm)
+
+# Set sample names as row names
+rownames(metadata_ref_dmm) <- metadata_ref_dmm$SampleName
+
+# Add to the phyloseq object
+sample_data(PS_ref) <- sample_data(metadata_ref_dmm)
+```
+
+## Visualize the number of samples per DMM cluster
+
+```{r}
+# create bubble chart representing number of samples per DMM cluster | ALL GROUPS ----
+Bubble.data <- metadata_ref_dmm %>%
+    group_by(Age, Cluster) %>%
+    summarize(n_samples = n())
+
+Bubble_ref_DMM <- Bubble.data %>%
+    arrange(desc(n_samples)) %>%
+    mutate(Age = factor(Age)) %>%
+    ggplot(aes(x = Age, y = fct_rev(Cluster), size = n_samples, color = Cluster)) +
+    geom_point(alpha = 0.5) +
+    geom_text(aes(label = n_samples), size = 3.5, color = "black") +
+    scale_size(range = c(5, 10), name = "Number of sampels") +
+    scale_color_viridis(discrete = TRUE) +
+    scale_fill_viridis(discrete = TRUE) +
+    xlab("Days post hatch") +
+    ylab("GM maturation stage") +
+    theme_minimal() +
+    theme(legend.position = "none")
+
+# save plot
+ggsave("./results/reference/Bubble_ref_DMM.png", plot = Bubble_ref_DMM, width = 8, height = 2, dpi = 300)
+```
+
+
+
+![Stages of caecal microbiome maturation](./results/reference/Bubble_ref_DMM.png)
+
+Graphic representation of the microbiota progression. Nodes are ordered based on age of the birds and labelled to include the number of samples per timepoint allocated to each GM maturation stage. 
+

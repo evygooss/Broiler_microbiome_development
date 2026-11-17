@@ -1,6 +1,13 @@
 # A reproducible workflow for identifying and predicting broiler gut microbiota developmental stages using Dirichlet Multinomial Mixture (DMM) modelling.
 
-This repository gives example code on how to predict the git microbiota (GM) maturation stage of broiler caecum samples, as was used in Cleiren *et al.* (https://doi.org/10.21203/rs.3.rs-11229652/v1). 
+This repository provides example code to identify gut microbiota (GM) developmental stages in broiler chickens and to predict the developmental stage of new caecal samples.
+
+The workflow applies the Dirichlet Multinomial Mixture (DMM) modelling framework described by Holmes *et al.* (2012) to broiler gut microbiota data. The application to identify GM developmental stages is based on the approach described in Cleiren *et al.* ([preprint](https://doi.org/10.21203/rs.3.rs-11229652/v1)).
+
+**References**
+
+- Holmes I, Harris K, Quince C. (2012). Dirichlet multinomial mixtures: generative models for microbial metagenomics. *PLoS ONE*, 7(2), e30126. https://doi.org/10.1371/journal.pone.0030126
+- Cleiren *et al.* (2026).Decoding early-life gut microbiota: discrete and reproducible maturation stages in broiler chickens (https://doi.org/10.21203/rs.3.rs-11229652/v1).
 
 ## Data
 
