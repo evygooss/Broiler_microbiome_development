@@ -22,20 +22,7 @@ The reference dataset contains caecal 16S rRNA gene amplicon sequencing data fro
 The early feeding dataset contains caecal 16S rRNA gene amplicon sequencing data from two broiler breeds: Ross 308 and Hubbard Redbro. Two feeding groups are included: 
 
 - **Early fed (EF):** immediate access to feed and water after hatch.
-- **Delayed fed (DF):** 48-hour feed and water deprivation after hatch. 
-
-The datasets are provided as:
-
-- **Metadata:** sample information, including bird age, breed and treatment group.
-- **ASV abundance table:** read counts per ASV after preprocessing.
-- **Taxonomy table:** taxonomic classification of each ASV.
-- **Representative sequences:** nucleotide sequences of the ASVs
-
-Raw sequencing reads are not included, but can be downloaded from NCBI SRA under BioProject PRJNA1520313 (reference dataset) and PRJNA1520349 (early feeding dataset). The workflow starts from processed ASV tables.
-
-## Requirements for combining datasets
-
-When combining microbiome datasets or applying an existing DMM model to new samples, consistency in the laboratory and bioinformatics workflows is essential.
+- **Delayed fed (DF): to new samples, consistency in the laboratory and bioinformatics workflows is essential.
 
 **DNA extraction and library preparation**
 
