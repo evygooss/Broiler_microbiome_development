@@ -42,18 +42,17 @@ Samples should be stored at -20°C or -80°C until extraction.
 
 3. Homogenise the sample using one of the following methods:
 
-**Option A: TissueLyser**
-
-- 2 cycles of 1.5 minutes at 22.5 Hz.
-- Use cooled blocks and turn the blocks between cycles to ensure even disruption.
-- If necessary, more intensive homogenisation (2 × 4 minutes at 30 Hz) may increase DNA yield.
-
-**Option B: Bead beater**
+**Option A: Bead beater**
 
 - 6 cycles of 30 seconds at 6,000 rpm.
 - Allow 30 seconds between cycles.
 - Cool the samples between cycles.
 
+**Option B: TissueLyser**
+
+- 2 cycles of 1.5 minutes at 22.5 Hz.
+- Use cooled blocks and turn the blocks between cycles to ensure even disruption.
+- If necessary, more intensive homogenisation (2 × 4 minutes at 30 Hz) may increase DNA yield.
 
 ### 4.2. First extraction
 
