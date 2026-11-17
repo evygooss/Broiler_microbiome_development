@@ -241,5 +241,5 @@ ggsave("./results/reference/Bubble_ref_DMM.png", plot = Bubble_ref_DMM, width = 
 
 ![Stages of caecal microbiome maturation](./results/reference/Bubble_ref_DMM.png)
 
-Graphic representation of the microbiota progression. Nodes are ordered based on age of the birds and labelled to include the number of samples per timepoint allocated to each GM maturation stage. 
+Graphic representation of the microbiota maturation. Nodes are ordered based on age of the birds and labelled to include the number of samples per timepoint allocated to each GM maturation stage. 
 
