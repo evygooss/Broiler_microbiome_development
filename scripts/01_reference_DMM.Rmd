@@ -140,8 +140,6 @@ p_DMM_ref <- ggplot(
 ggsave("./results/reference/DMM_ref_model_fit.png", plot = p_DMM_ref, width = 6, height = 4, dpi = 300)
 ```
 
-![DMM model fit](./results/reference/DMM_ref_model_fit.png)
-
 We use the Laplace approximation to determine the optimal number of clusters. The model with the lowest Laplace value is considered the best fit. In this case, the optimal number of clusters is 4, which we will use for further analysis.
 
 ## Assess the probability of each sample belonging to each component
@@ -236,10 +234,4 @@ Bubble_ref_DMM <- Bubble.data %>%
 # save plot
 ggsave("./results/reference/Bubble_ref_DMM.png", plot = Bubble_ref_DMM, width = 8, height = 2, dpi = 300)
 ```
-
-
-
-![Stages of caecal microbiome maturation](./results/reference/Bubble_ref_DMM.png)
-
-Graphic representation of the microbiota progression. Nodes are ordered based on age of the birds and labelled to include the number of samples per timepoint allocated to each GM maturation stage. 
 
