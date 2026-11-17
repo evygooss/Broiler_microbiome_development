@@ -9,11 +9,6 @@ The workflow applies the Dirichlet Multinomial Mixture (DMM) modelling framework
 - Holmes I, Harris K, Quince C. (2012). Dirichlet multinomial mixtures: generative models for microbial metagenomics. *PLoS ONE*, 7(2), e30126. https://doi.org/10.1371/journal.pone.0030126
 - Cleiren *et al.* (2026).Decoding early-life gut microbiota: discrete and reproducible maturation stages in broiler chickens (https://doi.org/10.21203/rs.3.rs-11229652/v1).
 
-## Prerequisites
-
-`Protocols` contains the DNA extraction protocol used to generate these datasets. We use the cetyltrimethylammonium bromide (CTAB) method. 
-We targeted the V3-V4 region of the 16S rRNA gene using the the gene-specific primers S-D-Bact-0341-b-S-17 (5′-CCTACGGGNGGCWGCAG-3′) and S-D-Bact-0785-a-A-21 (5′-GACTACHVGGGTATCTAATCC-3′) as described by Klindworth *et al*. 
-
 ## Data
 
 Two longitudinal datasets of the caecal microbiota (16S rRNA gene amplicon sequencing) are included.
